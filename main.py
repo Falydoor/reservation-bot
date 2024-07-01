@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from queue import Queue
 
 from apscheduler import Scheduler
@@ -9,6 +9,11 @@ from mac_notifications import client
 import bot.utils as utils
 from bot.golf import Golf
 from bot.restaurant import Restaurant
+
+
+def call_restaurant(restaurant):
+    restaurant()
+
 
 if __name__ == "__main__":
     INTERVAL = 15
@@ -32,16 +37,16 @@ if __name__ == "__main__":
     queue = Queue()
 
     restaurants = [
-        Restaurant(id=utils.FOUR_CHARLES, days_range=21, queue=queue),
-        Restaurant(id=utils.CARBONE, days_range=35, queue=queue),
+        Restaurant(id=utils.I_SODI, party_size=3, hour_end=20, days=[date(2024, 7, 2), date(2024, 7, 3)], queue=queue),
     ]
     for i, restaurant in enumerate(restaurants):
         scheduler.add_schedule(
-            restaurant,
+            call_restaurant,
             trigger=IntervalTrigger(
                 seconds=INTERVAL,
                 start_time=datetime.now() + timedelta(seconds=i * INTERVAL / len(restaurants)),
             ),
+            kwargs={"restaurant": restaurant},
         )
 
     # Golf

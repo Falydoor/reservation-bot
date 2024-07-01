@@ -11,7 +11,7 @@ logger = logging.getLogger("reservation_bot")
 
 
 class Restaurant(BaseBot):
-    id: str
+    id: str = ""
     type: str = "resy"
     days_range: int = 0
     ignore_type: str = ".*(outdoor|patio).*"
