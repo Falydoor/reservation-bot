@@ -7,7 +7,7 @@ import requests
 from bot.base_bot import BaseBot
 from bot.utils import BotException, get_resy_headers, get_hillstone_headers, get_sevenrooms_headers
 
-logger = logging.getLogger("reservation_bot")
+logger = logging.getLogger()
 
 
 class Restaurant(BaseBot):

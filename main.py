@@ -18,20 +18,9 @@ def call_restaurant(restaurant):
 if __name__ == "__main__":
     INTERVAL = 15
 
-    # Logger
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    logger = logging.getLogger("reservation_bot")
-    logger.setLevel(logging.INFO)
-    fh = logging.FileHandler("main.log")
-    fh.setLevel(logging.INFO)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-
     # Root logger
-    root_logger = logging.getLogger()
-    root_logger.handlers[0].setFormatter(formatter)
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.getLogger().handlers[0].setFormatter(formatter)
 
     scheduler = Scheduler()
     queue = Queue()

@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from bot.base_bot import BaseBot
 from bot.utils import BotException
 
-logger = logging.getLogger("reservation_bot")
+logger = logging.getLogger()
 
 
 class Golf(BaseBot):

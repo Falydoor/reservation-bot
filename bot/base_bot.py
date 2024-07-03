@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 from bot.utils import Mail
 
-logger = logging.getLogger("reservation_bot")
+logger = logging.getLogger()
 
 
 class BaseBot(BaseModel):
