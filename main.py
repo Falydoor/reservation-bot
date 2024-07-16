@@ -11,8 +11,8 @@ from bot.golf import Golf
 from bot.restaurant import Restaurant
 
 
-def call_restaurant(restaurant):
-    restaurant()
+def call_restaurant(restaurant_class):
+    restaurant_class()
 
 
 if __name__ == "__main__":
@@ -21,6 +21,7 @@ if __name__ == "__main__":
     # Root logger
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     logging.getLogger().handlers[0].setFormatter(formatter)
+    logging.getLogger('apscheduler').setLevel(logging.ERROR)
 
     scheduler = Scheduler()
     queue = Queue()
@@ -35,7 +36,7 @@ if __name__ == "__main__":
                 seconds=INTERVAL,
                 start_time=datetime.now() + timedelta(seconds=i * INTERVAL / len(restaurants)),
             ),
-            kwargs={"restaurant": restaurant},
+            kwargs={"restaurant_class": restaurant},
         )
 
     # Golf

@@ -23,6 +23,7 @@ class BaseBot(BaseModel):
     skipped_reservations: List[str] = []
     queue: Queue
     mail: Mail = Mail()
+    tries: int = 0
 
     def notify(self, reservation, skip=False):
         # Skip hours

@@ -21,6 +21,9 @@ class Restaurant(BaseBot):
         self.__qualname__ = "Bot.Restaurant"
 
     def __call__(self):
+        if self.tries % 50 == 0:
+            logger.info("Try N°%s for %s", self.tries, self.id)
+        self.tries += 1
         if self.type == "resy":
             self.get_reservations_resy()
         elif self.type == "sevenrooms":
@@ -30,8 +33,18 @@ class Restaurant(BaseBot):
         else:
             raise BotException(f"Unknown reservation type {self.type}")
 
-    def call_api(self, url, headers):
-        response = requests.get(url, headers=headers)
+    def get_headers(self):
+        if self.type == "resy":
+            return get_resy_headers()
+        elif self.type == "sevenrooms":
+            return get_sevenrooms_headers()
+        elif self.type == "hillstone":
+            return get_hillstone_headers()
+        else:
+            raise BotException(f"Unknown reservation type {self.type}")
+
+    def call_api(self, url, params):
+        response = requests.get(url, params=params, headers=self.get_headers())
         if response.status_code != 200:
             raise BotException(
                 f"Unable to get {self.type} tables for {self.id} : {response.text} ({response.status_code})")
@@ -42,10 +55,13 @@ class Restaurant(BaseBot):
         # Get days with available slot
         days = [dt.date.today() + dt.timedelta(days=x) for x in
                 range(self.days_range)] if self.days_range else self.days
-        start_date = dt.date.today().strftime("%Y-%m-%d")
-        end_date = max(days).strftime("%Y-%m-%d")
-        url = f"https://api.resy.com/4/venue/calendar?venue_id={self.id}&num_seats={self.party_size}&start_date={start_date}&end_date={end_date}"
-        response_json = self.call_api(url, get_resy_headers())
+        params = {
+            "venue_id": self.id,
+            "num_seats": self.party_size,
+            "start_date": dt.date.today().strftime("%Y-%m-%d"),
+            "end_date": max(days).strftime("%Y-%m-%d")
+        }
+        response_json = self.call_api("https://api.resy.com/4/venue/calendar", params)
 
         # Set available days
         scheduled_days = [
@@ -57,9 +73,14 @@ class Restaurant(BaseBot):
         # Iterate days
         for day in [day for day in days if day in scheduled_days]:
             logger.info("REST call for %s (%s)", day, self.id)
-            day_str = day.strftime("%Y-%m-%d")
-            url = f"https://api.resy.com/4/find?lat=0&long=0&day={day_str}&party_size={self.party_size}&venue_id={self.id}"
-            response_json = self.call_api(url, get_resy_headers())
+            params = {
+                "lat": 0,
+                "long": 0,
+                "day": day.strftime("%Y-%m-%d"),
+                "party_size": self.party_size,
+                "venue_id": self.id
+            }
+            response_json = self.call_api("https://api.resy.com/4/find", params)
 
             # Iterate slots
             for venue in response_json["results"]["venues"]:
@@ -87,11 +108,14 @@ class Restaurant(BaseBot):
 
     def get_reservations_hillstone(self):
         for day in self.days:
-            search_ts = int(
-                dt.datetime.combine(day, dt.time(self.hour_start)).timestamp() * 1000
-            )
-            url = f"https://loyaltyapi.wisely.io/v2/web/reservations/inventory?merchant_id={self.id}&party_size={self.party_size}&search_ts={search_ts}&show_reservation_types=1&limit=5"
-            response_json = self.call_api(url, get_hillstone_headers())
+            params = {
+                "merchant_id": self.id,
+                "party_size": self.party_size,
+                "search_ts": int(dt.datetime.combine(day, dt.time(self.hour_start)).timestamp() * 1000),
+                "show_reservation_types": 1,
+                "limit": 5
+            }
+            response_json = self.call_api("https://loyaltyapi.wisely.io/v2/web/reservations/inventory", params)
 
             # Iterate slots
             for reservation_type in response_json["types"]:
@@ -111,8 +135,17 @@ class Restaurant(BaseBot):
     def get_reservations_sevenrooms(self):
         for day in self.days:
             day_str = day.strftime("%m-%d-%Y")
-            url = f"https://www.sevenrooms.com/api-yoa/availability/widget/range?venue={self.id}&time_slot={self.hour_start}:00&party_size={self.party_size}&halo_size_interval=16&start_date={day_str}&num_days=1&channel=SEVENROOMS_WIDGET&selected_lang_code=en"
-            response_json = self.call_api(url, get_sevenrooms_headers())
+            params = {
+                "venue": self.id,
+                "time_slot": f"{self.hour_start}:00",
+                "party_size": self.party_size,
+                "halo_size_interval": 16,
+                "start_date": day_str,
+                "num_days": 1,
+                "channel": "SEVENROOMS_WIDGET",
+                "selected_lang_code": "en"
+            }
+            response_json = self.call_api("https://www.sevenrooms.com/api-yoa/availability/widget/range", params)
 
             # Iterate slots
             for types in response_json["data"]["availability"].get(day_str, []):
