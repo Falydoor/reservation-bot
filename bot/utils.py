@@ -9,7 +9,7 @@ class BotException(Exception):
 
 class Mail:
     def __init__(self):
-        self.port = "465"
+        self.port = 465
         self.smtp_server_domain_name = "smtp.gmail.com"
         self.sender_mail = "EMAIL"
         self.password = ""

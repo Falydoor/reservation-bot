@@ -44,12 +44,12 @@ class Restaurant(BaseBot):
             raise BotException(f"Unknown reservation type {self.type}")
 
     def call_api(self, url, params):
-        response = requests.get(url, params=params, headers=self.get_headers())
-        if response.status_code != 200:
-            raise BotException(
-                f"Unable to get {self.type} tables for {self.id} : {response.text} ({response.status_code})")
+        r = requests.get(url, params=params, headers=self.get_headers())
+        if r.status_code != 200:
+            logger.error("Unable to get %s tables for %s : %s (%i)", self.type, self.id, r.text, r.status_code)
+            return {}
 
-        return response.json()
+        return r.json()
 
     def get_reservations_resy(self):
         # Get days with available slot
@@ -83,7 +83,7 @@ class Restaurant(BaseBot):
             response_json = self.call_api("https://api.resy.com/4/find", params)
 
             # Iterate slots
-            for venue in response_json["results"]["venues"]:
+            for venue in response_json.get("results", {}).get("venues", []):
                 for slot in venue["slots"]:
                     slot_datetime = dt.datetime.fromisoformat(slot["date"]["start"])
                     reservation = {
@@ -118,7 +118,7 @@ class Restaurant(BaseBot):
             response_json = self.call_api("https://loyaltyapi.wisely.io/v2/web/reservations/inventory", params)
 
             # Iterate slots
-            for reservation_type in response_json["types"]:
+            for reservation_type in response_json.get("types", []):
                 for slot in reservation_type["times"]:
                     slot_datetime = dt.datetime.fromtimestamp(
                         slot["reserved_ts"] / 1000
@@ -148,7 +148,7 @@ class Restaurant(BaseBot):
             response_json = self.call_api("https://www.sevenrooms.com/api-yoa/availability/widget/range", params)
 
             # Iterate slots
-            for types in response_json["data"]["availability"].get(day_str, []):
+            for types in response_json.get("data", {}).get("availability", {}).get(day_str, []):
                 if types.get("shift_category") == "BRUNCH":
                     for time in types["times"]:
                         if "cost" in time:
