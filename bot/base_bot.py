@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import re
 from datetime import date
 from queue import Queue
 from typing import List
@@ -25,7 +26,20 @@ class BaseBot(BaseModel):
     mail: Mail = Mail()
     tries: int = 0
 
-    def notify(self, reservation, skip=False):
+    def notify(self, reservation, ignore_type=""):
+        key = f"{reservation['name']} on {reservation['datetime']} for {reservation['party_size_min']}+"
+        logger.info("Found reservation for %s", key)
+
+        skip = False
+
+        # Skip type
+        if "type" in reservation and re.match(
+                ignore_type,
+                reservation["type"],
+                re.IGNORECASE,
+        ):
+            skip = True
+
         # Skip hours
         if (
                 reservation["datetime"].hour < self.hour_start
@@ -35,25 +49,25 @@ class BaseBot(BaseModel):
 
         # Skip
         if skip:
-            if reservation["name"] not in self.skipped_reservations:
-                logger.info(f"Skipped {reservation['name']}")
-                self.skipped_reservations.append(reservation["name"])
+            if key not in self.skipped_reservations:
+                logger.info("Skipped %s", key)
+                self.skipped_reservations.append(key)
             return
 
         # Send notification
-        if (reservation["name"] not in self.mailed_reservations) or (
-                (self.mailed_reservations[reservation["name"]] + dt.timedelta(minutes=5))
+        if (key not in self.mailed_reservations) or (
+                (self.mailed_reservations[key] + dt.timedelta(minutes=5))
                 < dt.datetime.now()
         ):
-            self.mailed_reservations[reservation["name"]] = dt.datetime.now()
-            logger.info(f"Found reservation : {reservation['name']}")
+            self.mailed_reservations[key] = dt.datetime.now()
+            logger.info("Notification for %s", key)
 
             # Send Mac notification
-            self.queue.put(reservation["name"])
+            self.queue.put(key)
 
             # Send email
             self.mail.send(
-                reservation["name"],
+                key,
                 f"Party size : {reservation['party_size_min']}-{reservation['party_size_max']}",
                 self.mail_to,
             )

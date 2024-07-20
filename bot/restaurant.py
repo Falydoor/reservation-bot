@@ -1,6 +1,5 @@
 import datetime as dt
 import logging
-import re
 
 import requests
 
@@ -87,24 +86,14 @@ class Restaurant(BaseBot):
                 for slot in venue["slots"]:
                     slot_datetime = dt.datetime.fromisoformat(slot["date"]["start"])
                     reservation = {
-                        "name": f"{venue['venue']['name']} for {slot['size']['min']}+ : {slot_datetime} ({slot['config']['type']})",
+                        "name": f"{venue['venue']['name']} ({slot['config']['type']})",
                         "datetime": slot_datetime,
                         "party_size_min": slot["size"]["min"],
                         "party_size_max": slot["size"]["max"],
+                        "type": slot["config"]["type"],
                     }
-                    logger.info(reservation["name"])
 
-                    skip = False
-
-                    # Skip type
-                    if not skip and re.match(
-                            self.ignore_type,
-                            slot["config"]["type"],
-                            re.IGNORECASE,
-                    ):
-                        skip = True
-
-                    self.notify(reservation, skip)
+                    self.notify(reservation, self.ignore_type)
 
     def get_reservations_hillstone(self):
         for day in self.days:
@@ -124,7 +113,7 @@ class Restaurant(BaseBot):
                         slot["reserved_ts"] / 1000
                     )
                     reservation = {
-                        "name": f"Hillstone for {slot['min_party_size']}+ : {slot_datetime}",
+                        "name": "Hillstone",
                         "datetime": slot_datetime,
                         "party_size_min": slot['min_party_size'],
                         "party_size_max": slot['max_party_size'],
@@ -154,7 +143,7 @@ class Restaurant(BaseBot):
                         if "cost" in time:
                             slot_datetime = dt.datetime.fromisoformat(time['real_datetime_of_slot'])
                             reservation = {
-                                "name": f"{time['public_time_slot_description']} for {self.party_size}+ : {slot_datetime}",
+                                "name": time['public_time_slot_description'],
                                 "datetime": slot_datetime,
                                 "party_size_min": self.party_size,
                                 "party_size_max": self.party_size,
