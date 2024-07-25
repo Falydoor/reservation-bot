@@ -28,7 +28,6 @@ class BaseBot(BaseModel):
 
     def notify(self, reservation, ignore_type=""):
         key = f"{reservation['name']} on {reservation['datetime']} for {reservation['party_size_min']}+"
-        logger.info("Found reservation for %s", key)
 
         skip = False
 
@@ -50,8 +49,8 @@ class BaseBot(BaseModel):
         # Skip
         if skip:
             if key not in self.skipped_reservations:
-                logger.info("Skipped %s", key)
                 self.skipped_reservations.append(key)
+                logger.info("Found reservation for %s (skipped)", key)
             return
 
         # Send notification

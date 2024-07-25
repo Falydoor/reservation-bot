@@ -2,6 +2,7 @@ import datetime as dt
 import logging
 
 import requests
+from requests.adapters import HTTPAdapter, Retry
 
 from bot.base_bot import BaseBot
 from bot.utils import BotException, get_resy_headers, get_hillstone_headers, get_sevenrooms_headers
@@ -14,6 +15,8 @@ class Restaurant(BaseBot):
     type: str = "resy"
     days_range: int = 0
     ignore_type: str = ".*(outdoor|patio).*"
+    last_check: dt.datetime = dt.datetime.now() - dt.timedelta(days=1)
+    interval_check: dt.timedelta = dt.timedelta(seconds=5)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -21,7 +24,7 @@ class Restaurant(BaseBot):
 
     def __call__(self):
         if self.tries % 50 == 0:
-            logger.info("Try N°%s for %s", self.tries, self.id)
+            logger.info("Try N°%s for %s", self.tries + 1, self.id)
         self.tries += 1
         if self.type == "resy":
             self.get_reservations_resy()
@@ -43,12 +46,21 @@ class Restaurant(BaseBot):
             raise BotException(f"Unknown reservation type {self.type}")
 
     def call_api(self, url, params):
-        r = requests.get(url, params=params, headers=self.get_headers())
-        if r.status_code != 200:
-            logger.error("Unable to get %s tables for %s : %s (%i)", self.type, self.id, r.text, r.status_code)
+        s = requests.Session()
+        retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502])
+        s.mount('https://', HTTPAdapter(max_retries=retries))
+        try:
+            return s.get(url, params=params, headers=self.get_headers()).json()
+        except requests.exceptions.RetryError:
+            logger.error("Max retries exceeded")
             return {}
-
-        return r.json()
+        except requests.exceptions.RequestException as e:
+            logger.error("Unable to get %s tables for %s : %s (%i)",
+                         self.type,
+                         self.id,
+                         e.response.text,
+                         e.response.status_code)
+            return {}
 
     def get_reservations_resy(self):
         # Get days with available slot
@@ -65,13 +77,15 @@ class Restaurant(BaseBot):
         # Set available days
         scheduled_days = [
             dt.date.fromisoformat(schedule["date"])
-            for schedule in response_json["scheduled"]
+            for schedule in response_json.get("scheduled", [])
             if schedule["inventory"]["reservation"] == "available"
         ]
 
+        if (dt.datetime.now() - self.last_check) < self.interval_check:
+            return
+
         # Iterate days
         for day in [day for day in days if day in scheduled_days]:
-            logger.info("REST call for %s (%s)", day, self.id)
             params = {
                 "lat": 0,
                 "long": 0,
@@ -80,6 +94,7 @@ class Restaurant(BaseBot):
                 "venue_id": self.id
             }
             response_json = self.call_api("https://api.resy.com/4/find", params)
+            self.last_check = dt.datetime.now()
 
             # Iterate slots
             for venue in response_json.get("results", {}).get("venues", []):
@@ -139,11 +154,11 @@ class Restaurant(BaseBot):
             # Iterate slots
             for types in response_json.get("data", {}).get("availability", {}).get(day_str, []):
                 if types.get("shift_category") == "BRUNCH":
-                    for time in types["times"]:
-                        if "cost" in time:
-                            slot_datetime = dt.datetime.fromisoformat(time['real_datetime_of_slot'])
+                    for slot in types["times"]:
+                        if "cost" in slot:
+                            slot_datetime = dt.datetime.fromisoformat(slot['real_datetime_of_slot'])
                             reservation = {
-                                "name": time['public_time_slot_description'],
+                                "name": slot['public_time_slot_description'],
                                 "datetime": slot_datetime,
                                 "party_size_min": self.party_size,
                                 "party_size_max": self.party_size,
