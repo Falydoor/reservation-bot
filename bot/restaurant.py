@@ -1,3 +1,4 @@
+import abc
 import datetime as dt
 import logging
 
@@ -5,54 +6,36 @@ import requests
 from requests.adapters import HTTPAdapter, Retry
 
 from bot.base_bot import BaseBot
-from bot.utils import BotException, get_resy_headers, get_hillstone_headers, get_sevenrooms_headers
+from bot.utils import get_resy_headers, get_hillstone_headers, get_sevenrooms_headers
 
 logger = logging.getLogger()
 
 
 class Restaurant(BaseBot):
     id: str = ""
-    type: str = "resy"
-    days_range: int = 0
-    ignore_type: str = ".*(outdoor|patio).*"
-    last_check: dt.datetime = dt.datetime.now() - dt.timedelta(days=1)
-    interval_check: dt.timedelta = dt.timedelta(seconds=5)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.__qualname__ = "Bot.Restaurant"
 
     def __call__(self):
         if self.tries % 50 == 0:
             logger.info("Try N°%s for %s", self.tries + 1, self.id)
         self.tries += 1
-        if self.type == "resy":
-            self.get_reservations_resy()
-        elif self.type == "sevenrooms":
-            self.get_reservations_sevenrooms()
-        elif self.type == "hillstone":
-            self.get_reservations_hillstone()
-        else:
-            raise BotException(f"Unknown reservation type {self.type}")
+        self.get_reservations()
 
+    @abc.abstractmethod
+    def get_reservations(self):
+        pass
+
+    @abc.abstractmethod
     def get_headers(self):
-        if self.type == "resy":
-            return get_resy_headers()
-        elif self.type == "sevenrooms":
-            return get_sevenrooms_headers()
-        elif self.type == "hillstone":
-            return get_hillstone_headers()
-        else:
-            raise BotException(f"Unknown reservation type {self.type}")
+        pass
 
     def call_api(self, url, params):
         s = requests.Session()
-        retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502])
+        retries = Retry(total=3, backoff_factor=2, status_forcelist=[500, 502])
         s.mount('https://', HTTPAdapter(max_retries=retries))
         try:
             return s.get(url, params=params, headers=self.get_headers()).json()
         except requests.exceptions.RetryError:
-            logger.error("Max retries exceeded")
+            logger.error("Max retries exceeded for %s", self.id)
             return {}
         except requests.exceptions.RequestException as e:
             logger.error("Unable to get %s tables for %s : %s (%i)",
@@ -62,7 +45,17 @@ class Restaurant(BaseBot):
                          e.response.status_code)
             return {}
 
-    def get_reservations_resy(self):
+
+class Resy(Restaurant):
+    days_range: int = 0
+    ignore_type: str = ".*(outdoor|patio).*"
+    last_check: dt.datetime = dt.datetime.now() - dt.timedelta(days=1)
+    interval_check: dt.timedelta = dt.timedelta(seconds=5)
+
+    def get_headers(self):
+        return get_resy_headers()
+
+    def get_reservations(self):
         # Get days with available slot
         days = [dt.date.today() + dt.timedelta(days=x) for x in
                 range(self.days_range)] if self.days_range else self.days
@@ -86,6 +79,7 @@ class Restaurant(BaseBot):
 
         # Iterate days
         for day in [day for day in days if day in scheduled_days]:
+            logger.info("Checking %s (%s)", day, self.id)
             params = {
                 "lat": 0,
                 "long": 0,
@@ -110,33 +104,12 @@ class Restaurant(BaseBot):
 
                     self.notify(reservation, self.ignore_type)
 
-    def get_reservations_hillstone(self):
-        for day in self.days:
-            params = {
-                "merchant_id": self.id,
-                "party_size": self.party_size,
-                "search_ts": int(dt.datetime.combine(day, dt.time(self.hour_start)).timestamp() * 1000),
-                "show_reservation_types": 1,
-                "limit": 5
-            }
-            response_json = self.call_api("https://loyaltyapi.wisely.io/v2/web/reservations/inventory", params)
 
-            # Iterate slots
-            for reservation_type in response_json.get("types", []):
-                for slot in reservation_type["times"]:
-                    slot_datetime = dt.datetime.fromtimestamp(
-                        slot["reserved_ts"] / 1000
-                    )
-                    reservation = {
-                        "name": "Hillstone",
-                        "datetime": slot_datetime,
-                        "party_size_min": slot['min_party_size'],
-                        "party_size_max": slot['max_party_size'],
-                    }
+class SevenRooms(Restaurant):
+    def get_headers(self):
+        return get_sevenrooms_headers()
 
-                    self.notify(reservation)
-
-    def get_reservations_sevenrooms(self):
+    def get_reservations(self):
         for day in self.days:
             day_str = day.strftime("%m-%d-%Y")
             params = {
@@ -165,3 +138,34 @@ class Restaurant(BaseBot):
                             }
 
                             self.notify(reservation)
+
+
+class HillStone(Restaurant):
+    def get_headers(self):
+        return get_hillstone_headers()
+
+    def get_reservations(self):
+        for day in self.days:
+            params = {
+                "merchant_id": self.id,
+                "party_size": self.party_size,
+                "search_ts": int(dt.datetime.combine(day, dt.time(self.hour_start)).timestamp() * 1000),
+                "show_reservation_types": 1,
+                "limit": 5
+            }
+            response_json = self.call_api("https://loyaltyapi.wisely.io/v2/web/reservations/inventory", params)
+
+            # Iterate slots
+            for reservation_type in response_json.get("types", []):
+                for slot in reservation_type["times"]:
+                    slot_datetime = dt.datetime.fromtimestamp(
+                        slot["reserved_ts"] / 1000
+                    )
+                    reservation = {
+                        "name": "Hillstone",
+                        "datetime": slot_datetime,
+                        "party_size_min": slot['min_party_size'],
+                        "party_size_max": slot['max_party_size'],
+                    }
+
+                    self.notify(reservation)
