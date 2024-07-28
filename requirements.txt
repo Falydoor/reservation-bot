@@ -3,3 +3,4 @@ macos-notifications==0.2.0
 pydantic==2.7.4
 requests==2.32.3
 bs4==0.0.2
+fake-useragent==1.5.1

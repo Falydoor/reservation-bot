@@ -3,10 +3,10 @@ import datetime as dt
 import logging
 
 import requests
+from fake_useragent import UserAgent
 from requests.adapters import HTTPAdapter, Retry
 
 from bot.base_bot import BaseBot
-from bot.utils import get_resy_headers, get_hillstone_headers, get_sevenrooms_headers
 
 logger = logging.getLogger()
 
@@ -24,9 +24,19 @@ class Restaurant(BaseBot):
     def get_reservations(self):
         pass
 
-    @abc.abstractmethod
     def get_headers(self):
-        pass
+        return {
+            "user-agent": str(UserAgent().chrome),
+            "accept-language": "en-US,en;q=0.9",
+            "sec-ch-ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"macOS"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "pragma": "no-cache",
+            "priority": "u=1, i",
+            "cache-control": "no-cache",
+        }
 
     def call_api(self, url, params):
         s = requests.Session()
@@ -53,7 +63,15 @@ class Resy(Restaurant):
     interval_check: dt.timedelta = dt.timedelta(seconds=5)
 
     def get_headers(self):
-        return get_resy_headers()
+        return super().get_headers() | {
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "accept": "application/json, text/plain, */*",
+            "authorization": 'ResyAPI api_key="VbWk7s3L4KiK5fzlO7JD3Q5EYolJI7n5"',
+            "sec-fetch-site": "same-site",
+            "x-origin": "https://resy.com",
+            "referer": "https://resy.com/",
+            "origin": "https://resy.com",
+        }
 
     def get_reservations(self):
         # Get days with available slot
@@ -107,7 +125,16 @@ class Resy(Restaurant):
 
 class SevenRooms(Restaurant):
     def get_headers(self):
-        return get_sevenrooms_headers()
+        return super().get_headers() | {
+            "authority": "www.sevenrooms.com",
+            "accept": "*/*",
+            "sec-fetch-site": "same-site",
+            "referer": "https://www.sevenrooms.com/reservations/noburestaurantshoreditch",
+            "cookie": ";".join(["csrftoken=faopNzAoETCqEK2xEVIbcWR9Cr6A7pgq",
+                                "G_AUTH2_MIGRATION=enforced",
+                                "__stripe_mid=165dc533-329f-4706-81be-b4e9a7ee18915e0353",
+                                "__stripe_sid=f313669e-b0bc-43b7-bdbb-57a8144761504fc6d8"])
+        }
 
     def get_reservations(self):
         for day in self.days:
@@ -142,7 +169,12 @@ class SevenRooms(Restaurant):
 
 class HillStone(Restaurant):
     def get_headers(self):
-        return get_hillstone_headers()
+        return super().get_headers() | {
+            "accept": "application/json, text/plain, */*",
+            "origin": "https://reservations.getwisely.com",
+            "referer": "https://reservations.getwisely.com/",
+            "sec-fetch-site": "cross-site",
+        }
 
     def get_reservations(self):
         for day in self.days:
