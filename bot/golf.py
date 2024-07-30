@@ -10,7 +10,7 @@ from bot.utils import BotException
 logger = logging.getLogger()
 
 
-class Golf(BaseBot):
+class GolfBot(BaseBot):
     type: str = "harborlinks"
 
     def __init__(self, **kwargs):

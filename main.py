@@ -6,9 +6,8 @@ from apscheduler import Scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from mac_notifications import client
 
-import bot.utils as utils
-from bot.golf import Golf
-from bot.restaurant import Restaurant
+from bot.golf import GolfBot
+from bot.restaurant import RestaurantEnum, ResyBot, SevenRoomsBot, HillStoneBot
 
 
 def call_restaurant(restaurant_class):
@@ -23,11 +22,15 @@ if __name__ == "__main__":
     logging.getLogger().handlers[0].setFormatter(formatter)
     logging.getLogger('apscheduler').setLevel(logging.ERROR)
 
+    # Setup scheduler/queue
     scheduler = Scheduler()
     queue = Queue()
 
     restaurants = [
-        Restaurant(id=utils.I_SODI, party_size=3, hour_end=20, days=[date(2024, 7, 2), date(2024, 7, 3)], queue=queue),
+        ResyBot(id=RestaurantEnum.I_SODI, party_size=3, hour_end=20, days=[date(2024, 7, 2), date(2024, 7, 3)],
+                queue=queue),
+        SevenRoomsBot(id=RestaurantEnum.NOBU_SHOREDITCH, queue=queue),
+        HillStoneBot(id=RestaurantEnum.HILLSTONE, queue=queue),
     ]
     for i, restaurant in enumerate(restaurants):
         scheduler.add_schedule(
@@ -41,7 +44,7 @@ if __name__ == "__main__":
 
     # Golf
     scheduler.add_schedule(
-        Golf(queue=queue),
+        GolfBot(queue=queue),
         trigger=IntervalTrigger(
             seconds=INTERVAL,
         ),

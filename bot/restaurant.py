@@ -1,6 +1,7 @@
 import abc
 import datetime as dt
 import logging
+from enum import Enum
 
 import requests
 from fake_useragent import UserAgent
@@ -11,12 +12,46 @@ from bot.base_bot import BaseBot
 logger = logging.getLogger()
 
 
-class Restaurant(BaseBot):
-    id: str = ""
+class RestaurantEnum(str, Enum):
+    # Resy
+    I_SODI = "443"
+    FOUR_CHARLES = "834"
+    CARBONE = "6194"
+    DON_ANGIE = "1505"
+    SAN_SABINO = "78799"
+    TWELVE_CHAIRS = "4994"
+    RAOULS = "7241"
+    TORRISI = "64593"
+    DOUBLE_CHICKEN = "42534"
+    THE_NINES = "7490"
+    CI_SIAMO = "54724"
+    LARTUSI = "25973"
+    THAI_VILLA = "52944"
+    PRANAKHON = "66711"
+    BLUE_BOX = "70161"
+    MONKEY_BAR = "60058"
+    SADELLE = "29967"
+    KEENS = "3413"
+    COTE = "72271"
+    VIA_CAROTTA = "2567"
+    LILLIA = "418"
+    LASER_WOLF = "58848"
+    SHUKETTE = "8579"
+    AU_CHEVAL = "5769"
+    MINETTA_TAVERN = "9846"
+    SHMONE = "59072"
+    # Hillstone
+    HILLSTONE = "278278"
+    # SevenRooms
+    NOBU_SHOREDITCH = "noburestaurantshoreditch"
+
+
+class RestaurantBot(BaseBot):
+    restaurant: RestaurantEnum
 
     def __call__(self):
         if self.tries % 50 == 0:
-            logger.info("Try N°%s for %s", self.tries + 1, self.id)
+            logger.info("Try N°%s for %s", self.tries + 1, self.restaurant.name)
         self.tries += 1
         self.get_reservations()
 
@@ -45,18 +80,18 @@ class Restaurant(BaseBot):
         try:
             return s.get(url, params=params, headers=self.get_headers()).json()
         except requests.exceptions.RetryError:
-            logger.error("Max retries exceeded for %s", self.id)
+            logger.error("Max retries exceeded for %s", self.restaurant.name)
             return {}
         except requests.exceptions.RequestException as e:
             logger.error("Unable to get %s tables for %s : %s (%i)",
                          self.type,
-                         self.id,
+                         self.restaurant.name,
                          e.response.text,
                          e.response.status_code)
             return {}
 
 
-class Resy(Restaurant):
+class ResyBot(RestaurantBot):
     days_range: int = 0
     ignore_type: str = ".*(outdoor|patio).*"
     last_check: dt.datetime = dt.datetime.now() - dt.timedelta(days=1)
@@ -78,7 +113,7 @@ class Resy(Restaurant):
         days = [dt.date.today() + dt.timedelta(days=x) for x in
                 range(self.days_range)] if self.days_range else self.days
         params = {
-            "venue_id": self.id,
+            "venue_id": self.restaurant.value,
             "num_seats": self.party_size,
             "start_date": dt.date.today().strftime("%Y-%m-%d"),
             "end_date": max(days).strftime("%Y-%m-%d")
@@ -97,13 +132,12 @@ class Resy(Restaurant):
 
         # Iterate days
         for day in [day for day in days if day in scheduled_days]:
-            logger.info("Checking %s (%s)", day, self.id)
             params = {
                 "lat": 0,
                 "long": 0,
                 "day": day.strftime("%Y-%m-%d"),
                 "party_size": self.party_size,
-                "venue_id": self.id
+                "venue_id": self.restaurant.value
             }
             response_json = self.call_api("https://api.resy.com/4/find", params)
             self.last_check = dt.datetime.now()
@@ -123,13 +157,13 @@ class Resy(Restaurant):
                     self.notify(reservation, self.ignore_type)
 
 
-class SevenRooms(Restaurant):
+class SevenRoomsBot(RestaurantBot):
     def get_headers(self):
         return super().get_headers() | {
             "authority": "www.sevenrooms.com",
             "accept": "*/*",
             "sec-fetch-site": "same-site",
-            "referer": "https://www.sevenrooms.com/reservations/noburestaurantshoreditch",
+            "referer": f"https://www.sevenrooms.com/reservations/{self.restaurant.value}",
             "cookie": ";".join(["csrftoken=faopNzAoETCqEK2xEVIbcWR9Cr6A7pgq",
                                 "G_AUTH2_MIGRATION=enforced",
                                 "__stripe_mid=165dc533-329f-4706-81be-b4e9a7ee18915e0353",
@@ -140,7 +174,7 @@ class SevenRooms(Restaurant):
         for day in self.days:
             day_str = day.strftime("%m-%d-%Y")
             params = {
-                "venue": self.id,
+                "venue": self.restaurant.value,
                 "time_slot": f"{self.hour_start}:00",
                 "party_size": self.party_size,
                 "halo_size_interval": 16,
@@ -152,22 +186,21 @@ class SevenRooms(Restaurant):
             response_json = self.call_api("https://www.sevenrooms.com/api-yoa/availability/widget/range", params)
 
             # Iterate slots
-            for types in response_json.get("data", {}).get("availability", {}).get(day_str, []):
-                if types.get("shift_category") == "BRUNCH":
-                    for slot in types["times"]:
-                        if "cost" in slot:
-                            slot_datetime = dt.datetime.fromisoformat(slot['real_datetime_of_slot'])
-                            reservation = {
-                                "name": slot['public_time_slot_description'],
-                                "datetime": slot_datetime,
-                                "party_size_min": self.party_size,
-                                "party_size_max": self.party_size,
-                            }
+            for types in response_json.get("data", {}).get("availability", {}).get(day.strftime("%Y-%m-%d"), []):
+                for slot in types["times"]:
+                    if "cost" in slot:
+                        slot_datetime = dt.datetime.fromisoformat(slot['real_datetime_of_slot'])
+                        reservation = {
+                            "name": slot['public_time_slot_description'],
+                            "datetime": slot_datetime,
+                            "party_size_min": self.party_size,
+                            "party_size_max": self.party_size,
+                        }
 
-                            self.notify(reservation)
+                        self.notify(reservation)
 
 
-class HillStone(Restaurant):
+class HillStoneBot(RestaurantBot):
     def get_headers(self):
         return super().get_headers() | {
             "accept": "application/json, text/plain, */*",
@@ -179,7 +212,7 @@ class HillStone(Restaurant):
     def get_reservations(self):
         for day in self.days:
             params = {
-                "merchant_id": self.id,
+                "merchant_id": self.restaurant.value,
                 "party_size": self.party_size,
                 "search_ts": int(dt.datetime.combine(day, dt.time(self.hour_start)).timestamp() * 1000),
                 "show_reservation_types": 1,
