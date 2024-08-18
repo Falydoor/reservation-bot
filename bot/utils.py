@@ -1,6 +1,11 @@
+import os
 import smtplib
 import ssl
 from email.mime.text import MIMEText
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class BotException(Exception):
@@ -11,8 +16,8 @@ class Mail:
     def __init__(self):
         self.port = 465
         self.smtp_server_domain_name = "smtp.gmail.com"
-        self.sender_mail = "EMAIL"
-        self.password = ""
+        self.sender_mail = os.environ["MAIL"]
+        self.password = os.environ["MAIL_TOKEN"]
 
     def send(self, subject, content, to):
         self.send_mail(

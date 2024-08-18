@@ -109,6 +109,10 @@ class ResyBot(RestaurantBot):
         }
 
     def get_reservations(self):
+        # Skip
+        if (dt.datetime.now() - self.last_check) < self.interval_check:
+            return
+
         # Get days with available slot
         days = [dt.date.today() + dt.timedelta(days=x) for x in
                 range(self.days_range)] if self.days_range else self.days
@@ -126,9 +130,6 @@ class ResyBot(RestaurantBot):
             for schedule in response_json.get("scheduled", [])
             if schedule["inventory"]["reservation"] == "available"
         ]
-
-        if (dt.datetime.now() - self.last_check) < self.interval_check:
-            return
 
         # Iterate days
         for day in [day for day in days if day in scheduled_days]:

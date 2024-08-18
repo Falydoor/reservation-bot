@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import os
 import re
 from datetime import date
 from queue import Queue
@@ -16,7 +17,7 @@ class BaseBot(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     type: str = ""
     party_size: int = 2
-    mail_to: List[str] = ["EMAIL"]
+    mail_to: List[str] = [os.environ["MAIL"]]
     hour_start: int = 19
     hour_end: int = 21
     days: List[date] = [dt.date.today()]
