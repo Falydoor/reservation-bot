@@ -38,12 +38,7 @@ class GolfBot(BaseBot):
             for time in times:
                 slot_time = dt.datetime.strptime(time.text, "%I:%M %p").time()
                 slot_datetime = dt.datetime.combine(day, slot_time)
+                key = f"Harbor Links for {self.party_size} at {slot_datetime}"
+                content = f"Party size : {self.party_size}"
 
-                reservation = {
-                    "name": f"Harbor Links for {self.party_size}+ : {slot_datetime}",
-                    "datetime": slot_datetime,
-                    "party_size_min": self.party_size,
-                    "party_size_max": self.party_size,
-                }
-
-                self.notify(reservation)
+                self.notify(key, content)

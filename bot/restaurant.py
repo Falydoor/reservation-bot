@@ -40,6 +40,7 @@ class RestaurantEnum(str, Enum):
     AU_CHEVAL = "5769"
     MINETTA_TAVERN = "9846"
     SHMONE = "59072"
+    CORNER_STORE = "83517"
     # Hillstone
     HILLSTONE = "278278"
     # SevenRooms
@@ -155,7 +156,7 @@ class ResyBot(RestaurantBot):
                         "type": slot["config"]["type"],
                     }
 
-                    self.notify(reservation, self.ignore_type)
+                    self.notify_restaurant(reservation, self.ignore_type)
 
 
 class SevenRoomsBot(RestaurantBot):
@@ -198,7 +199,7 @@ class SevenRoomsBot(RestaurantBot):
                             "party_size_max": self.party_size,
                         }
 
-                        self.notify(reservation)
+                        self.notify_restaurant(reservation)
 
 
 class HillStoneBot(RestaurantBot):
@@ -234,4 +235,4 @@ class HillStoneBot(RestaurantBot):
                         "party_size_max": slot['max_party_size'],
                     }
 
-                    self.notify(reservation)
+                    self.notify_restaurant(reservation)

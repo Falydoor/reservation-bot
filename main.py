@@ -18,8 +18,7 @@ if __name__ == "__main__":
     INTERVAL = 15
 
     # Root logger
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    logging.getLogger().handlers[0].setFormatter(formatter)
+    logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.INFO, force=True)
     logging.getLogger('apscheduler').setLevel(logging.ERROR)
 
     # Setup scheduler/queue

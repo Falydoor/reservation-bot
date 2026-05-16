@@ -27,8 +27,23 @@ class BaseBot(BaseModel):
     mail: Mail = Mail()
     tries: int = 0
 
-    def notify(self, reservation, ignore_type=""):
+    def notify(self, key, content):
+        if (key not in self.mailed_reservations) or (
+                (self.mailed_reservations[key] + dt.timedelta(minutes=0.4))
+                < dt.datetime.now()
+        ):
+            self.mailed_reservations[key] = dt.datetime.now()
+            logger.info("Notification for %s", key)
+
+            # Send Mac notification
+            self.queue.put(key)
+
+            # Send email
+            self.mail.send(key, content, self.mail_to)
+
+    def notify_restaurant(self, reservation, ignore_type=""):
         key = f"{reservation['name']} on {reservation['datetime']} for {reservation['party_size_min']}+"
+        content = f"Party size : {reservation['party_size_min']}-{reservation['party_size_max']}"
 
         skip = False
 
@@ -55,19 +70,4 @@ class BaseBot(BaseModel):
             return
 
         # Send notification
-        if (key not in self.mailed_reservations) or (
-                (self.mailed_reservations[key] + dt.timedelta(minutes=5))
-                < dt.datetime.now()
-        ):
-            self.mailed_reservations[key] = dt.datetime.now()
-            logger.info("Notification for %s", key)
-
-            # Send Mac notification
-            self.queue.put(key)
-
-            # Send email
-            self.mail.send(
-                key,
-                f"Party size : {reservation['party_size_min']}-{reservation['party_size_max']}",
-                self.mail_to,
-            )
+        self.notify(key, content)
