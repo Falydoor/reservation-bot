@@ -49,6 +49,7 @@ class RestaurantEnum(str, Enum):
 
 class RestaurantBot(BaseBot):
     restaurant: RestaurantEnum
+    days_range: int = 0
 
     def __call__(self):
         if self.tries % 50 == 0:
@@ -59,6 +60,10 @@ class RestaurantBot(BaseBot):
     @abc.abstractmethod
     def get_reservations(self):
         pass
+
+    def get_days(self):
+        return [dt.date.today() + dt.timedelta(days=x) for x in
+                range(self.days_range)] if self.days_range else self.days
 
     def get_headers(self):
         return {
@@ -93,7 +98,6 @@ class RestaurantBot(BaseBot):
 
 
 class ResyBot(RestaurantBot):
-    days_range: int = 0
     ignore_type: str = ".*(outdoor|patio).*"
     last_check: dt.datetime = dt.datetime.now() - dt.timedelta(days=1)
     interval_check: dt.timedelta = dt.timedelta(seconds=5)
@@ -115,13 +119,11 @@ class ResyBot(RestaurantBot):
             return
 
         # Get days with available slot
-        days = [dt.date.today() + dt.timedelta(days=x) for x in
-                range(self.days_range)] if self.days_range else self.days
         params = {
             "venue_id": self.restaurant.value,
             "num_seats": self.party_size,
             "start_date": dt.date.today().strftime("%Y-%m-%d"),
-            "end_date": max(days).strftime("%Y-%m-%d")
+            "end_date": max(self.get_days()).strftime("%Y-%m-%d")
         }
         response_json = self.call_api("https://api.resy.com/4/venue/calendar", params)
 
@@ -133,7 +135,7 @@ class ResyBot(RestaurantBot):
         ]
 
         # Iterate days
-        for day in [day for day in days if day in scheduled_days]:
+        for day in [day for day in self.get_days() if day in scheduled_days]:
             params = {
                 "lat": 0,
                 "long": 0,
@@ -173,7 +175,7 @@ class SevenRoomsBot(RestaurantBot):
         }
 
     def get_reservations(self):
-        for day in self.days:
+        for day in self.get_days():
             day_str = day.strftime("%m-%d-%Y")
             params = {
                 "venue": self.restaurant.value,
